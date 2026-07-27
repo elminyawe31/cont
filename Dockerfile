@@ -1,7 +1,6 @@
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
-    ROOT_PASSWORD=ELMINYAWE \
     SSH_PORT=22 \
     TZ=UTC \
     LANG=en_US.UTF-8
@@ -22,13 +21,14 @@ RUN arch="$(dpkg --print-architecture)" && \
 
 RUN mkdir -p /run/sshd && \
     sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-    sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
-    echo "root:${ROOT_PASSWORD}" | chpasswd
+    sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
 
 COPY <<'EOF' /entrypoint.sh
 #!/usr/bin/env bash
 set -e
 
+# تعيين الباسورد افتراضياً لو لم يتم تحديده في متغيرات البيئة
+ROOT_PASSWORD="${ROOT_PASSWORD:-ELMINYAWE}"
 WEB_PORT="${PORT:-7681}"
 SSH_P="${SSH_PORT:-22}"
 
@@ -42,11 +42,14 @@ echo "------------------------------------------------"
 echo "  Browser Access: Open your Railway project URL."
 echo "================================================"
 
+# تطبيق الباسورد على نظام التشغيل
 echo "root:${ROOT_PASSWORD}" | chpasswd
 
+# تشغيل SSH
 ssh-keygen -A 2>/dev/null || true
 /usr/sbin/sshd -p "${SSH_P}"
 
+# تشغيل الويب تيرمينال
 exec /usr/local/bin/ttyd \
   --port "${WEB_PORT}" \
   --writable \
@@ -56,16 +59,6 @@ exec /usr/local/bin/ttyd \
 EOF
 
 RUN chmod +x /entrypoint.sh
-
-RUN echo "================================================" && \
-    echo "  Smart me - Build Completed" && \
-    echo "================================================" && \
-    echo "  SSH User: root" && \
-    echo "  SSH Pass: ${ROOT_PASSWORD}" && \
-    echo "  SSH Port: ${SSH_PORT} (Internal)" && \
-    echo "------------------------------------------------" && \
-    echo "  Railway will provide a public TCP Hostname & Port in Deploy Logs or Networking." && \
-    echo "================================================"
 
 EXPOSE 22 7681
 
