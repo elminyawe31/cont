@@ -1,62 +1,55 @@
 FROM ubuntu:24.04
 
-ENV DEBIAN_FRONTEND=noninteractive \
-    SSH_PORT=22 \
-    TZ=UTC \
-    LANG=en_US.UTF-8
+ENV DEBIAN_FRONTEND=noninteractive
+ENV ROOT_PASSWORD=ELMINYAWE
 
+# 1. تثبيت الحزم الأساسية + SSH + أدوات السيرفر
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      openssh-server sudo curl wget git vim nano htop tmux \
-      zip unzip tar rsync net-tools iproute2 iputils-ping dnsutils \
-      build-essential python3 python3-pip ca-certificates gnupg lsb-release \
-      software-properties-common locales tzdata cron bash-completion man-db \
-      jq less file passwd openssh-client && \
+    openssh-server sudo curl wget git vim nano htop tmux \
+    build-essential python3 python3-pip net-tools iproute2 \
+    bash-completion locales tzdata && \
     locale-gen en_US.UTF-8 && \
     rm -rf /var/lib/apt/lists/*
 
-RUN arch="$(dpkg --print-architecture)" && \
-    case "$arch" in amd64) t=x86_64;; arm64) t=aarch64;; *) t="$arch";; esac && \
-    curl -fsSL "https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.${t}" \
-      -o /usr/local/bin/ttyd && chmod +x /usr/local/bin/ttyd
-
+# 2. إعداد الـ SSH والباسورد
 RUN mkdir -p /run/sshd && \
     sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-    sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+    sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    echo "root:${ROOT_PASSWORD}" | chpasswd
 
-COPY <<'EOF' /entrypoint.sh
-#!/usr/bin/env bash
-set -e
-
-ROOT_PASSWORD="${ROOT_PASSWORD:-ELMINYAWE}"
-# Railway بياخد بورت من المتغير PORT، ولو مش موجود يستخدم 8080
-WEB_PORT="${PORT:-8080}"
-SSH_P="${SSH_PORT:-22}"
+# 3. تحميل سكريبت تشغيل ذكي جداً (بيعالج مشكلة بورت Railway)
+COPY <<'EOF' /start.sh
+#!/bin/bash
+# Railway بياخد البورت من المتغير PORT
+WEB_PORT=${PORT:-8080}
 
 echo "================================================"
-echo "  Smart me - Started Successfully"
+echo "  Smart Server - Ready!"
 echo "================================================"
-echo "  SSH User: root"
-echo "  SSH Pass: ${ROOT_PASSWORD}"
-echo "  Web Terminal Port: ${WEB_PORT}"
-echo "  Internal SSH Port: ${SSH_P}"
-echo "------------------------------------------------"
-echo "  Browser Access: Open your Railway project URL."
+echo "  Web Terminal: Just open the Railway URL."
+echo "  SSH User: root | SSH Pass: ${ROOT_PASSWORD}"
 echo "================================================"
 
+# تشغيل SSH في الخلفية
 echo "root:${ROOT_PASSWORD}" | chpasswd
+/usr/sbin/sshd
 
-ssh-keygen -A 2>/dev/null || true
-/usr/sbin/sshd -p "${SSH_P}"
-
-exec /usr/local/bin/ttyd \
-  --port "${WEB_PORT}" \
-  --writable \
-  --credential "root:${ROOT_PASSWORD}" \
-  /bin/bash -l
+# تشغيل الترمينال في المتصفح على بورت Railway
+# باستخدام أداة gotty الخفيفة جداً والمتوافقة مع Railway
+exec /usr/local/bin/gotty -w --port ${WEB_PORT} --credential "root:${ROOT_PASSWORD}" /bin/bash -l
 EOF
 
-RUN chmod +x /entrypoint.sh
+# 4. تحميل أداة gotty (أخف وأذكى من ttyd لـ Railway)
+RUN curl -fsSL "https://github.com/sorenisanerd/gotty/releases/latest/download/gotty_1.5.0_linux_amd64.tar.gz" -o /tmp/gotty.tar.gz && \
+    tar -xzf /tmp/gotty.tar.gz -C /usr/local/bin/ gotty && \
+    chmod +x /usr/local/bin/gotty && \
+    rm /tmp/gotty.tar.gz
 
-EXPOSE 8080 22
+# 5. إعطاء صلاحيات للسكريبت
+RUN chmod +x /start.sh
 
-CMD ["/entrypoint.sh"]
+# 6. إخبار Railway إن الخدمة على بورت 8080 (البورت اللي Railway بيحبه)
+EXPOSE 8080
+
+# 7. التشغيل
+CMD ["/start.sh"]
