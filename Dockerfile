@@ -27,9 +27,9 @@ COPY <<'EOF' /entrypoint.sh
 #!/usr/bin/env bash
 set -e
 
-# تعيين الباسورد افتراضياً لو لم يتم تحديده في متغيرات البيئة
 ROOT_PASSWORD="${ROOT_PASSWORD:-ELMINYAWE}"
-WEB_PORT="${PORT:-7681}"
+# Railway بياخد بورت من المتغير PORT، ولو مش موجود يستخدم 8080
+WEB_PORT="${PORT:-8080}"
 SSH_P="${SSH_PORT:-22}"
 
 echo "================================================"
@@ -37,32 +37,26 @@ echo "  Smart me - Started Successfully"
 echo "================================================"
 echo "  SSH User: root"
 echo "  SSH Pass: ${ROOT_PASSWORD}"
-echo "  Internal Port: ${SSH_P}"
+echo "  Web Terminal Port: ${WEB_PORT}"
+echo "  Internal SSH Port: ${SSH_P}"
 echo "------------------------------------------------"
 echo "  Browser Access: Open your Railway project URL."
 echo "================================================"
 
-# تطبيق الباسورد على نظام التشغيل
 echo "root:${ROOT_PASSWORD}" | chpasswd
 
-# تشغيل SSH
 ssh-keygen -A 2>/dev/null || true
 /usr/sbin/sshd -p "${SSH_P}"
 
-# تشغيل الويب تيرمينال
 exec /usr/local/bin/ttyd \
   --port "${WEB_PORT}" \
   --writable \
   --credential "root:${ROOT_PASSWORD}" \
-  --title "Smart me" \
   /bin/bash -l
 EOF
 
 RUN chmod +x /entrypoint.sh
 
-EXPOSE 22 7681
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD curl -fsS "http://localhost:${PORT:-7681}/" || exit 1
+EXPOSE 8080 22
 
 CMD ["/entrypoint.sh"]
