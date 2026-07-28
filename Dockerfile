@@ -3,9 +3,7 @@ FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive \
     ROOT_PASSWORD=ELMINYAWE \
     TZ=UTC \
-    LANG=en_US.UTF-8 \
-    PYENV_ROOT="/root/.pyenv" \
-    PATH="$PYENV_ROOT/bin:$PYENV_ROOT/shims:$PATH"
+    LANG=en_US.UTF-8
 
 RUN apt-get update -y || (sleep 5 && apt-get update -y) && \
     apt-get install -y --no-install-recommends \
@@ -19,9 +17,12 @@ RUN apt-get update -y || (sleep 5 && apt-get update -y) && \
     locale-gen en_US.UTF-8 && \
     rm -rf /var/lib/apt/lists/*
 
-RUN curl -fsSL https://pyenv.run | bash && \
-    eval "$(pyenv init -)" && \
-    pyenv install 3.11 && \
+RUN curl -fsSL https://pyenv.run | bash
+
+ENV PYENV_ROOT="/root/.pyenv"
+ENV PATH="$PYENV_ROOT/bin:$PYENV_ROOT/shims:$PATH"
+
+RUN pyenv install 3.11 && \
     pyenv install 3.12 && \
     pyenv install 3.13 && \
     pyenv global 3.13
